@@ -1,0 +1,1897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>INSTA REMINDER CRM v2 · Firebase</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- ═══ FIREBASE SDK ═══ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCeApmx7G9oRjkPJvqyQUTqAduqi0Oqw7A",
+    authDomain: "my-web-82171.firebaseapp.com",
+    databaseURL: "https://my-web-82171-default-rtdb.firebaseio.com",
+    projectId: "my-web-82171",
+    storageBucket: "my-web-82171.firebasestorage.app",
+    messagingSenderId: "217741550937",
+    appId: "1:217741550937:web:4f7cc67cf3540818bf1848",
+    measurementId: "G-M3NXGBSXGZ"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // ── Expose to global scope ──
+  window.FB_AUTH = auth;
+  window.FB_DB = db;
+  window.FB_FUNCS = {
+    signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+    onAuthStateChanged, collection, doc, setDoc, getDoc, getDocs,
+    deleteDoc, onSnapshot, query, orderBy, serverTimestamp, writeBatch
+  };
+
+  // ── Boot once Firebase is ready ──
+  window.addEventListener('DOMContentLoaded', () => {
+    // Wait a tick for global functions to be registered
+    setTimeout(() => {
+      if (typeof window.firebaseReady === 'function') window.firebaseReady();
+    }, 100);
+  });
+  // Also fire if DOM already loaded
+  if (document.readyState !== 'loading') {
+    setTimeout(() => {
+      if (typeof window.firebaseReady === 'function') window.firebaseReady();
+    }, 200);
+  }
+</script>
+
+<style>
+/* ═══════════════════════════════════════ TOKENS */
+:root{
+  --red:#E8192C;--red-dark:#B5121F;--red-glow:rgba(232,25,44,.22);
+  --black:#090909;--black2:#111;--black3:#1A1A1A;--black4:#242424;--black5:#2E2E2E;--black6:#383838;
+  --white:#F5F5F5;--white2:#E0E0E0;--white3:#AAAAAA;--white4:#555;
+  --green:#22C55E;--green-dim:rgba(34,197,94,.15);
+  --yellow:#F59E0B;--yellow-dim:rgba(245,158,11,.15);
+  --blue:#3B82F6;--blue-dim:rgba(59,130,246,.15);
+  --purple:#A855F7;--purple-dim:rgba(168,85,247,.15);
+  --fh:'Bebas Neue',sans-serif;--fb:'DM Sans',sans-serif;--fm:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--black);color:var(--white);font-family:var(--fb);overflow-x:hidden;min-height:100vh;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--black2);}
+::-webkit-scrollbar-thumb{background:var(--red);border-radius:2px;}
+
+/* ─ FIREBASE STATUS BAR ─ */
+#fb-status-bar{position:fixed;top:0;left:0;right:0;z-index:99999;padding:7px 18px;font-size:.72rem;font-family:var(--fm);display:flex;align-items:center;gap:8px;transition:.3s;}
+#fb-status-bar.connecting{background:rgba(245,158,11,.15);border-bottom:1px solid rgba(245,158,11,.3);color:var(--yellow);}
+#fb-status-bar.connected{background:rgba(34,197,94,.1);border-bottom:1px solid rgba(34,197,94,.25);color:var(--green);}
+#fb-status-bar.error{background:rgba(232,25,44,.1);border-bottom:1px solid rgba(232,25,44,.3);color:var(--red);}
+.fb-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.fb-dot.pulse{animation:fbpulse 1.5s infinite;}
+@keyframes fbpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+
+/* ─ AUTH ─ */
+#auth-screen{position:fixed;inset:0;background:var(--black);display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:9999;padding-top:32px;}
+.auth-bg{position:absolute;inset:0;background:radial-gradient(ellipse 70% 50% at 50% -10%,var(--red-glow),transparent 65%);pointer-events:none;}
+.auth-logo{font-family:var(--fh);font-size:3.8rem;color:var(--red);letter-spacing:5px;margin-bottom:4px;position:relative;z-index:1;}
+.auth-logo span{color:var(--white);}
+.auth-sub{font-size:.7rem;color:var(--white4);letter-spacing:7px;text-transform:uppercase;margin-bottom:8px;z-index:1;}
+.auth-firebase-badge{display:flex;align-items:center;gap:6px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:20px;padding:4px 12px;font-size:.68rem;color:var(--green);margin-bottom:24px;z-index:1;}
+.auth-card{background:var(--black3);border:1px solid var(--black5);border-radius:18px;padding:38px;width:420px;max-width:95vw;position:relative;z-index:1;}
+.auth-card::after{content:'';position:absolute;top:-1px;left:40px;right:40px;height:2px;background:linear-gradient(90deg,transparent,var(--red),transparent);border-radius:2px;}
+.auth-tabs{display:flex;gap:6px;margin-bottom:26px;}
+.auth-tab{flex:1;padding:10px;background:var(--black4);border:1px solid var(--black5);border-radius:8px;color:var(--white3);font-family:var(--fb);font-size:.82rem;cursor:pointer;transition:.2s;}
+.auth-tab.active{background:var(--red);border-color:var(--red);color:#fff;font-weight:700;}
+.auth-field{margin-bottom:16px;}
+.auth-field label{display:block;font-size:.68rem;color:var(--white3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;}
+.auth-field input,.auth-field select{width:100%;padding:12px 14px;background:var(--black4);border:1px solid var(--black5);border-radius:8px;color:var(--white);font-family:var(--fb);font-size:.88rem;outline:none;transition:.2s;}
+.auth-field input:focus,.auth-field select:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-glow);}
+.auth-btn{width:100%;padding:14px;background:var(--red);border:none;border-radius:9px;color:#fff;font-family:var(--fh);font-size:1.25rem;letter-spacing:3px;cursor:pointer;transition:.2s;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:8px;}
+.auth-btn:hover{background:var(--red-dark);transform:translateY(-1px);}
+.auth-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+.auth-err{font-size:.78rem;text-align:center;margin-top:11px;min-height:18px;}
+.auth-err.ok{color:var(--green);}
+.auth-err.err{color:var(--red);}
+.auth-demo{margin-top:14px;padding:11px 14px;background:var(--black4);border-radius:8px;font-size:.72rem;color:var(--white4);border:1px solid var(--black5);}
+.auth-security-note{margin-top:10px;padding:9px 12px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:7px;font-size:.68rem;color:var(--white3);display:flex;gap:6px;align-items:flex-start;}
+
+/* ─ LAYOUT ─ */
+#app{display:none;height:100vh;flex-direction:row;padding-top:32px;}
+#app.visible{display:flex;}
+.sidebar{width:225px;min-width:225px;background:var(--black2);border-right:1px solid var(--black4);display:flex;flex-direction:column;height:calc(100vh - 32px);position:sticky;top:32px;overflow-y:auto;}
+.sb-logo{padding:22px 20px 18px;border-bottom:1px solid var(--black4);}
+.sb-logo h1{font-family:var(--fh);font-size:1.35rem;color:var(--red);letter-spacing:2px;}
+.sb-logo p{font-size:.6rem;color:var(--white4);letter-spacing:4px;text-transform:uppercase;margin-top:2px;}
+.sb-sync{display:flex;align-items:center;gap:5px;font-size:.6rem;color:var(--green);margin-top:4px;}
+.sb-user{padding:13px 18px;border-bottom:1px solid var(--black4);display:flex;align-items:center;gap:10px;}
+.sb-avatar{width:34px;height:34px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-family:var(--fh);font-size:1.1rem;color:#fff;flex-shrink:0;border:2px solid var(--red-dark);}
+.sb-uname{font-size:.82rem;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sb-urole{font-size:.62rem;color:var(--white4);letter-spacing:1px;text-transform:uppercase;margin-top:1px;}
+.nav{flex:1;padding:12px 0;}
+.nav-sec{padding:8px 18px 3px;font-size:.58rem;color:var(--white4);letter-spacing:2.5px;text-transform:uppercase;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:10px 18px;color:var(--white3);cursor:pointer;transition:.15s;font-size:.83rem;border-left:2px solid transparent;margin:1px 0;}
+.nav-item:hover{color:var(--white);background:var(--black3);}
+.nav-item.active{color:var(--red);background:rgba(232,25,44,.07);border-left-color:var(--red);font-weight:600;}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:.58rem;padding:2px 6px;border-radius:10px;font-weight:800;}
+.sb-bottom{padding:14px 18px;border-top:1px solid var(--black4);}
+.sb-version{font-size:.62rem;color:var(--white4);margin-bottom:10px;font-family:var(--fm);}
+.logout-btn{display:flex;align-items:center;gap:7px;color:var(--white4);cursor:pointer;font-size:.78rem;transition:.2s;padding:6px 0;}
+.logout-btn:hover{color:var(--red);}
+
+/* ─ MAIN ─ */
+.main{flex:1;overflow-y:auto;min-width:0;display:flex;flex-direction:column;}
+.topbar{padding:16px 26px;border-bottom:1px solid var(--black4);display:flex;align-items:center;justify-content:space-between;background:var(--black2);position:sticky;top:0;z-index:100;}
+.topbar-left{display:flex;align-items:center;gap:12px;}
+.topbar-title{font-family:var(--fh);font-size:1.75rem;letter-spacing:2px;}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.topbar-date{font-size:.72rem;color:var(--white4);font-family:var(--fm);}
+.topbar-wa{display:flex;align-items:center;gap:6px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.25);border-radius:20px;padding:5px 12px;font-size:.72rem;color:var(--green);font-weight:600;cursor:pointer;transition:.2s;}
+.topbar-wa:hover{background:rgba(34,197,94,.2);}
+.topbar-sync{display:flex;align-items:center;gap:5px;font-size:.68rem;color:var(--white4);font-family:var(--fm);}
+.content{padding:24px;flex:1;}
+
+/* ─ CARDS ─ */
+.card{background:var(--black3);border:1px solid var(--black4);border-radius:12px;padding:20px;}
+.card-title{font-family:var(--fh);font-size:1.05rem;letter-spacing:1px;color:var(--white);margin-bottom:15px;}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:22px;}
+.stat{background:var(--black3);border:1px solid var(--black4);border-radius:12px;padding:18px;position:relative;overflow:hidden;transition:.2s;}
+.stat:hover{transform:translateY(-2px);border-color:var(--black6);}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.s-red::before{background:var(--red);}
+.s-green::before{background:var(--green);}
+.s-yellow::before{background:var(--yellow);}
+.s-blue::before{background:var(--blue);}
+.s-purple::before{background:var(--purple);}
+.stat-lbl{font-size:.65rem;color:var(--white4);letter-spacing:2px;text-transform:uppercase;margin-bottom:7px;}
+.stat-val{font-family:var(--fh);font-size:2.3rem;line-height:1;}
+.stat-sub{font-size:.68rem;color:var(--white4);margin-top:5px;}
+
+/* ─ TABLE ─ */
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:.83rem;}
+th{padding:9px 13px;text-align:left;font-size:.62rem;letter-spacing:2px;text-transform:uppercase;color:var(--white4);border-bottom:1px solid var(--black5);white-space:nowrap;}
+td{padding:10px 13px;border-bottom:1px solid var(--black4);color:var(--white2);vertical-align:middle;}
+tr:hover td{background:var(--black4);}
+.tr-sel td{background:rgba(232,25,44,.07)!important;}
+
+/* ─ BADGES ─ */
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:.68rem;font-weight:700;letter-spacing:.5px;white-space:nowrap;}
+.b-new{background:var(--blue-dim);color:var(--blue);}
+.b-contacted{background:var(--yellow-dim);color:var(--yellow);}
+.b-interested{background:var(--purple-dim);color:var(--purple);}
+.b-closed{background:var(--green-dim);color:var(--green);}
+.b-lost{background:rgba(232,25,44,.12);color:var(--red);}
+.b-pending{background:var(--yellow-dim);color:var(--yellow);}
+.b-done{background:var(--green-dim);color:var(--green);}
+.b-overdue{background:rgba(232,25,44,.12);color:var(--red);}
+.b-high{background:rgba(232,25,44,.12);color:var(--red);}
+.b-medium{background:var(--yellow-dim);color:var(--yellow);}
+.b-low{background:var(--green-dim);color:var(--green);}
+.b-admin{background:rgba(232,25,44,.15);color:var(--red);}
+.b-staff{background:var(--blue-dim);color:var(--blue);}
+.b-firebase{background:rgba(255,160,0,.15);color:#FFA000;}
+
+/* ─ BUTTONS ─ */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 15px;border-radius:8px;border:none;font-family:var(--fb);font-size:.78rem;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap;letter-spacing:.3px;}
+.btn-primary{background:var(--red);color:#fff;}
+.btn-primary:hover{background:var(--red-dark);}
+.btn-ghost{background:var(--black4);color:var(--white2);border:1px solid var(--black5);}
+.btn-ghost:hover{background:var(--black5);}
+.btn-green{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3);}
+.btn-green:hover{background:rgba(34,197,94,.25);}
+.btn-wa{background:#128C7E;color:#fff;}
+.btn-wa:hover{background:#075E54;}
+.btn-sm{padding:5px 11px;font-size:.73rem;}
+.btn-xs{padding:3px 8px;font-size:.68rem;}
+.btn-icon{padding:6px;}
+
+/* ─ INPUTS ─ */
+input,select,textarea{background:var(--black4);border:1px solid var(--black5);border-radius:8px;color:var(--white);font-family:var(--fb);font-size:.83rem;padding:9px 11px;outline:none;transition:.2s;width:100%;}
+input:focus,select:focus,textarea:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-glow);}
+textarea{resize:vertical;min-height:78px;}
+select option{background:var(--black3);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+.form-field{display:flex;flex-direction:column;gap:4px;}
+.form-field label{font-size:.67rem;color:var(--white4);letter-spacing:1px;text-transform:uppercase;}
+.form-full{grid-column:1/-1;}
+
+/* ─ MODAL ─ */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px);}
+.modal{background:var(--black3);border:1px solid var(--black5);border-radius:16px;width:580px;max-width:100%;max-height:90vh;overflow-y:auto;}
+.modal-header{padding:20px 22px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--black5);}
+.modal-title{font-family:var(--fh);font-size:1.25rem;letter-spacing:1px;}
+.modal-body{padding:22px;}
+.modal-footer{padding:15px 22px;border-top:1px solid var(--black5);display:flex;justify-content:flex-end;gap:8px;}
+.close-btn{background:var(--black4);border:none;color:var(--white3);width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;transition:.2s;}
+.close-btn:hover{background:var(--red);color:#fff;}
+
+/* ─ KANBAN ─ */
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:start;}
+.k-col{background:var(--black3);border:1px solid var(--black4);border-radius:12px;padding:13px;}
+.k-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;padding-bottom:11px;border-bottom:1px solid var(--black4);}
+.k-head h3{font-size:.75rem;letter-spacing:1px;text-transform:uppercase;}
+.k-count{background:var(--black4);font-size:.68rem;padding:2px 7px;border-radius:9px;font-weight:700;color:var(--white3);}
+.k-card{background:var(--black4);border:1px solid var(--black5);border-radius:8px;padding:11px;margin-bottom:7px;cursor:pointer;transition:.15s;}
+.k-card:hover{border-color:var(--red);transform:translateX(2px);}
+.k-card-name{font-size:.83rem;font-weight:600;margin-bottom:3px;}
+.k-card-meta{font-size:.68rem;color:var(--white4);}
+
+/* ─ TABS ─ */
+.tabs{display:flex;gap:4px;background:var(--black3);border-radius:10px;padding:4px;margin-bottom:18px;border:1px solid var(--black4);}
+.tab-btn{flex:1;padding:8px 12px;background:transparent;border:none;color:var(--white3);font-family:var(--fb);font-size:.78rem;cursor:pointer;border-radius:7px;transition:.15s;white-space:nowrap;}
+.tab-btn.active{background:var(--red);color:#fff;font-weight:700;}
+.tab-btn:hover:not(.active){background:var(--black4);color:var(--white);}
+
+/* ─ CHART BARS ─ */
+.chart-row{display:flex;align-items:center;gap:9px;margin-bottom:11px;}
+.chart-lbl{font-size:.77rem;color:var(--white3);width:110px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chart-bar-wrap{flex:1;height:9px;background:var(--black5);border-radius:5px;overflow:hidden;}
+.chart-bar{height:100%;border-radius:5px;transition:.5s;}
+.chart-val{font-size:.72rem;color:var(--white4);width:36px;text-align:right;font-family:var(--fm);}
+
+/* ─ PROGRESS ─ */
+.progress-bar{height:7px;background:var(--black5);border-radius:4px;overflow:hidden;margin-top:4px;}
+.progress-fill{height:100%;border-radius:4px;transition:.5s;}
+
+/* ─ TOAST ─ */
+#toast-ct{position:fixed;top:48px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:7px;}
+.toast{background:var(--black3);border:1px solid var(--black5);border-left:3px solid var(--green);border-radius:8px;padding:11px 15px;font-size:.8rem;color:var(--white2);animation:tIn .3s ease;box-shadow:0 8px 28px rgba(0,0,0,.5);display:flex;align-items:center;gap:8px;min-width:240px;max-width:320px;}
+.toast.err{border-left-color:var(--red);}
+.toast.warn{border-left-color:var(--yellow);}
+.toast.info{border-left-color:var(--blue);}
+.toast.firebase{border-left-color:#FFA000;}
+@keyframes tIn{from{transform:translateX(110%);opacity:0}to{transform:none;opacity:1}}
+
+/* ─ REMINDER POPUP ─ */
+#rem-popup{position:fixed;bottom:22px;right:22px;z-index:5000;display:none;max-width:300px;}
+.rem-alert{background:var(--black3);border:1px solid var(--red);border-radius:12px;padding:16px 18px;box-shadow:0 0 30px var(--red-glow);animation:pulse 2s infinite;position:relative;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 var(--red-glow)}50%{box-shadow:0 0 0 10px rgba(232,25,44,0)}}
+.rem-alert h4{font-family:var(--fh);font-size:.95rem;letter-spacing:1px;color:var(--red);margin-bottom:4px;}
+.rem-alert p{font-size:.77rem;color:var(--white3);}
+.rem-close{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--white4);cursor:pointer;font-size:.9rem;}
+
+/* ─ SECTION HELPERS ─ */
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;}
+.empty{text-align:center;padding:50px 20px;color:var(--white4);}
+.empty svg{width:44px;height:44px;margin-bottom:10px;opacity:.25;display:block;margin-left:auto;margin-right:auto;}
+.divider{border:none;border-top:1px solid var(--black4);margin:14px 0;}
+.text-mono{font-family:var(--fm);font-size:.78rem;}
+.hidden{display:none!important;}
+.flex-c{display:flex;align-items:center;}
+.gap8{gap:8px;}
+.gap12{gap:12px;}
+.tag-pill{display:inline-block;padding:2px 7px;border-radius:9px;font-size:.63rem;font-weight:600;background:var(--black5);color:var(--white3);}
+
+/* ─ PRODUCTION PANEL ─ */
+.prod-panel{background:linear-gradient(135deg,rgba(232,25,44,.08),rgba(59,130,246,.05));border:1px solid rgba(232,25,44,.3);border-radius:12px;padding:20px;margin-bottom:22px;}
+.prod-panel h3{font-family:var(--fh);font-size:1.1rem;letter-spacing:1px;color:var(--red);margin-bottom:12px;}
+.prod-check{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--black5);}
+.prod-check:last-child{border:none;}
+.prod-icon{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;margin-top:1px;}
+.pi-done{background:var(--green-dim);color:var(--green);}
+.pi-warn{background:var(--yellow-dim);color:var(--yellow);}
+.pi-need{background:rgba(232,25,44,.15);color:var(--red);}
+.prod-text h4{font-size:.82rem;font-weight:600;margin-bottom:2px;}
+.prod-text p{font-size:.72rem;color:var(--white4);line-height:1.5;}
+
+/* ─ PAGES ─ */
+[id^="page-"]{display:none;}
+[id^="page-"].active{display:block;}
+
+/* ─ FIREBASE INFO BANNER ─ */
+.fb-banner{background:rgba(255,160,0,.08);border:1px solid rgba(255,160,0,.3);border-radius:9px;padding:10px 14px;margin-bottom:18px;display:flex;align-items:center;gap:10px;font-size:.78rem;color:#FFA000;}
+.fb-banner svg{flex-shrink:0;}
+.fb-banner.ok{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.3);color:var(--green);}
+
+/* ─ WA CONFIG ─ */
+.wa-config-box{background:var(--black4);border:1px solid var(--black5);border-radius:10px;padding:14px;margin-bottom:14px;}
+.wa-config-box h4{font-size:.8rem;font-weight:700;margin-bottom:8px;color:var(--white2);}
+.wa-config-box p{font-size:.73rem;color:var(--white4);line-height:1.6;}
+.code-block{background:var(--black);border:1px solid var(--black6);border-radius:7px;padding:11px;font-family:var(--fm);font-size:.72rem;color:var(--green);margin-top:8px;white-space:pre;overflow-x:auto;line-height:1.7;}
+.online-indicator{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;box-shadow:0 0 6px var(--green);animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ─ LOADING SPINNER ─ */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ═══════ FIREBASE STATUS BAR ═══════ -->
+<div id="fb-status-bar" class="connecting">
+  <div class="fb-dot pulse" id="fb-dot" style="background:var(--yellow);"></div>
+  <span id="fb-status-text">Connecting to Firebase...</span>
+  <span style="margin-left:auto;opacity:.6;">my-web-82171.firebaseapp.com</span>
+</div>
+
+<!-- ═══════ AUTH SCREEN ═══════ -->
+<div id="auth-screen">
+  <div class="auth-bg"></div>
+  <div class="auth-logo">INSTA<span>REMINDER</span></div>
+  <div class="auth-sub">CRM Platform · v2.0</div>
+  <div class="auth-firebase-badge">
+    <span class="online-indicator"></span>
+    Firebase Cloud Sync Activated · my-web-82171
+  </div>
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="authTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="authTab('register')">Register Staff</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="lf">
+      <div class="auth-field"><label>Email</label>
+        <input type="email" id="le" autocomplete="email" placeholder="admin@instareminder.com">
+      </div>
+      <div class="auth-field"><label>Password</label>
+        <input type="password" id="lp" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <button class="auth-btn" id="login-btn" onclick="doLogin()">SIGN IN →</button>
+    </div>
+
+    <!-- REGISTER -->
+    <div id="rf" class="hidden">
+      <div class="auth-field"><label>Full Name</label><input type="text" id="rn" placeholder="Jane Smith"></div>
+      <div class="auth-field"><label>Email</label><input type="email" id="re" placeholder="staff@company.com"></div>
+      <div class="auth-field"><label>Password (min 8 chars)</label><input type="password" id="rp" placeholder="Create strong password"></div>
+      <div class="auth-field"><label>Confirm Password</label><input type="password" id="rp2" placeholder="Repeat password"></div>
+      <button class="auth-btn" id="reg-btn" onclick="doRegister()">CREATE ACCOUNT →</button>
+    </div>
+
+    <div id="auth-err" class="auth-err"></div>
+
+    <div class="auth-demo">
+      <strong style="color:var(--white3);">First time?</strong> Register a new account above.<br>
+      <strong style="color:var(--white3);">Returning?</strong> Sign in with your Firebase email & password.
+    </div>
+    <div class="auth-security-note">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span>Secured by <strong>Firebase Authentication</strong>. Data synced in real-time via <strong>Firestore</strong>. Access from any device, anywhere.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ TOASTS ═══════ -->
+<div id="toast-ct"></div>
+
+<!-- ═══════ REMINDER POPUP ═══════ -->
+<div id="rem-popup">
+  <div class="rem-alert">
+    <button class="rem-close" onclick="document.getElementById('rem-popup').style.display='none'">✕</button>
+    <h4>⏰ REMINDER DUE</h4>
+    <p id="rem-popup-text"></p>
+    <button class="btn btn-ghost btn-xs" style="margin-top:8px;" onclick="document.getElementById('rem-popup').style.display='none'">Dismiss</button>
+  </div>
+</div>
+
+<!-- ═══════ MODALS ═══════ -->
+
+<!-- Customer Modal -->
+<div id="m-cust" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="m-cust-title">ADD CUSTOMER</div><button class="close-btn" onclick="cm('m-cust')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-field"><label>Full Name *</label><input type="text" id="c-name" placeholder="John Doe"></div>
+        <div class="form-field"><label>Phone *</label><input type="tel" id="c-phone" placeholder="+255700000000"></div>
+        <div class="form-field"><label>Email</label><input type="email" id="c-email" placeholder="john@email.com"></div>
+        <div class="form-field"><label>Business</label><input type="text" id="c-biz" placeholder="Company name"></div>
+        <div class="form-field"><label>Pipeline Stage</label>
+          <select id="c-stage"><option>New Lead</option><option>Contacted</option><option>Interested</option><option>Closed</option><option>Lost</option></select>
+        </div>
+        <div class="form-field"><label>Tags (comma-separated)</label><input type="text" id="c-tags" placeholder="vip, retail"></div>
+        <div class="form-field form-full"><label>Notes</label><textarea id="c-notes" placeholder="Any notes..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cm('m-cust')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCust()">SAVE CUSTOMER</button>
+    </div>
+  </div>
+</div>
+
+<!-- Follow-up Modal -->
+<div id="m-fu" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">SCHEDULE FOLLOW-UP</div><button class="close-btn" onclick="cm('m-fu')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-field form-full"><label>Customer</label><select id="fu-cust"></select></div>
+        <div class="form-field"><label>Date</label><input type="date" id="fu-date"></div>
+        <div class="form-field"><label>Method</label>
+          <select id="fu-method"><option>WhatsApp</option><option>Call</option><option>Email</option><option>Visit</option></select>
+        </div>
+        <div class="form-field"><label>Priority</label>
+          <select id="fu-pri"><option value="High">High</option><option value="Medium" selected>Medium</option><option value="Low">Low</option></select>
+        </div>
+        <div class="form-field form-full"><label>Notes</label><textarea id="fu-notes" placeholder="What to follow up on..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cm('m-fu')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveFU()">SCHEDULE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reminder Modal -->
+<div id="m-rem" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">SET REMINDER</div><button class="close-btn" onclick="cm('m-rem')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-field form-full"><label>Title *</label><input type="text" id="rem-title" placeholder="Call back Mr. Jones"></div>
+        <div class="form-field"><label>Date & Time</label><input type="datetime-local" id="rem-dt"></div>
+        <div class="form-field"><label>Priority</label>
+          <select id="rem-pri"><option value="High">High</option><option value="Medium" selected>Medium</option><option value="Low">Low</option></select>
+        </div>
+        <div class="form-field form-full"><label>Description</label><textarea id="rem-desc" placeholder="Details..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cm('m-rem')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRem()">SET REMINDER</button>
+    </div>
+  </div>
+</div>
+
+<!-- WhatsApp Modal -->
+<div id="m-wa" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">SEND WHATSAPP</div><button class="close-btn" onclick="cm('m-wa')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-field form-full"><label>Recipient</label><select id="wa-cust"></select></div>
+        <div class="form-field form-full"><label>Template</label>
+          <select id="wa-tmpl" onchange="applyTmpl()"><option value="">— select template —</option></select>
+        </div>
+        <div class="form-field form-full"><label>Message</label><textarea id="wa-msg" placeholder="Type your message..." style="min-height:110px;"></textarea></div>
+      </div>
+      <div style="margin-top:12px;padding:10px;background:var(--black4);border-radius:8px;font-size:.73rem;color:var(--white4);">
+        📲 Sends via <strong style="color:var(--green);">WhatsApp Web</strong> — your number <strong style="color:var(--white2);">+255754074590</strong> · Message logged to Firebase
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cm('m-wa')">Cancel</button>
+      <button class="btn btn-wa" onclick="sendWA()">📲 SEND VIA WHATSAPP</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MAIN APP ═══════ -->
+<div id="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sb-logo">
+      <h1>INSTAREMINDER</h1>
+      <p>CRM · v2.0</p>
+      <div class="sb-sync"><span class="online-indicator" style="width:6px;height:6px;"></span> Firebase Synced</div>
+    </div>
+    <div class="sb-user">
+      <div class="sb-avatar" id="sb-av">A</div>
+      <div>
+        <div class="sb-uname" id="sb-nm">Loading...</div>
+        <div class="sb-urole" id="sb-rl">...</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <div class="nav-sec">Main</div>
+      <div class="nav-item active" onclick="go('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard
+      </div>
+      <div class="nav-item" onclick="go('analytics')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Analytics
+        <span class="nav-badge">LIVE</span>
+      </div>
+      <div class="nav-sec">CRM</div>
+      <div class="nav-item" onclick="go('customers')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers
+      </div>
+      <div class="nav-item" onclick="go('pipeline')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Pipeline
+      </div>
+      <div class="nav-item" onclick="go('followups')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Follow-Ups
+        <span class="nav-badge hidden" id="nb-fu">0</span>
+      </div>
+      <div class="nav-sec">Communication</div>
+      <div class="nav-item" onclick="go('whatsapp')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>WhatsApp
+        <span class="nav-badge hidden" id="nb-wa">0</span>
+      </div>
+      <div class="nav-item" onclick="go('reminders')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Reminders
+        <span class="nav-badge hidden" id="nb-rem">0</span>
+      </div>
+      <div class="nav-sec">Reports</div>
+      <div class="nav-item" onclick="go('reports')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Reports & Export
+      </div>
+      <div class="nav-sec">System</div>
+      <div class="nav-item" onclick="go('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M2 12h2M20 12h2M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41"/></svg>Settings
+      </div>
+    </nav>
+    <div class="sb-bottom">
+      <div class="sb-version">v2.0 · Firebase Cloud Mode</div>
+      <div class="logout-btn" onclick="doLogout()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Logout
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title" id="ph">DASHBOARD</div>
+        <div id="topbar-badge"></div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-sync" id="sync-indicator">
+          <span class="online-indicator" style="width:6px;height:6px;box-shadow:none;"></span>
+          <span id="sync-text">Synced</span>
+        </div>
+        <div class="topbar-wa" onclick="openWA(null)" title="Send WhatsApp from +255754074590">
+          <span class="online-indicator"></span> +255 754 074 590
+        </div>
+        <div class="topbar-date" id="top-date"></div>
+      </div>
+    </div>
+    <div class="content">
+
+      <!-- ── DASHBOARD ── -->
+      <div id="page-dashboard" class="active">
+        <div class="fb-banner ok">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <strong>Firebase Cloud Sync Active</strong> — Data syncs in real-time across all devices. Project: <strong>my-web-82171</strong>
+        </div>
+        <div class="stats-grid" id="d-stats"></div>
+        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:15px;margin-bottom:18px;">
+          <div class="card"><div class="card-title">PIPELINE OVERVIEW</div><div id="d-pipeline"></div></div>
+          <div class="card"><div class="card-title">RECENT ACTIVITY</div><div id="d-activity" style="max-height:230px;overflow-y:auto;"></div></div>
+        </div>
+        <div class="card">
+          <div class="sec-hdr"><div class="card-title" style="margin:0;">RECENT CUSTOMERS</div>
+            <button class="btn btn-primary btn-sm" onclick="openAddCust()">+ Add Customer</button>
+          </div>
+          <div class="table-wrap" id="d-recent"></div>
+        </div>
+      </div>
+
+      <!-- ── ANALYTICS ── -->
+      <div id="page-analytics">
+        <div class="stats-grid" id="a-kpi"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:18px;">
+          <div class="card"><div class="card-title">MESSAGES SENT — LAST 7 DAYS</div><div id="a-msg"></div></div>
+          <div class="card"><div class="card-title">LEAD CONVERSION FUNNEL</div><div id="a-funnel"></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+          <div class="card"><div class="card-title">RESPONSE RATE BY CHANNEL</div><div id="a-resp"></div></div>
+          <div class="card"><div class="card-title">STAFF PERFORMANCE</div><div id="a-staff"></div></div>
+        </div>
+      </div>
+
+      <!-- ── CUSTOMERS ── -->
+      <div id="page-customers">
+        <div class="sec-hdr">
+          <div class="flex-c gap8" style="flex:1;flex-wrap:wrap;">
+            <div style="position:relative;flex:1;max-width:260px;">
+              <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--white4);width:13px;height:13px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input type="text" id="cq" placeholder="Search..." oninput="rCust()" style="padding-left:30px;">
+            </div>
+            <select id="csf" onchange="rCust()" style="width:140px;">
+              <option value="">All Stages</option>
+              <option>New Lead</option><option>Contacted</option><option>Interested</option><option>Closed</option><option>Lost</option>
+            </select>
+          </div>
+          <div class="flex-c gap8" style="flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" onclick="bulkWA()">📲 Bulk WA</button>
+            <button class="btn btn-ghost btn-sm" onclick="bulkDel()">🗑 Delete</button>
+            <button class="btn btn-ghost btn-sm" onclick="expCSV()">📄 CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="openAddCust()">+ Add</button>
+          </div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th><input type="checkbox" id="sel-all" onchange="selAll(this)"></th>
+                <th>Name</th><th>Phone</th><th>Business</th><th>Stage</th><th>Tags</th><th>Added</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="c-tbody"></tbody>
+            </table>
+          </div>
+          <div id="c-empty" class="empty hidden">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            <p>No customers yet. Add your first customer!</p>
+          </div>
+        </div>
+        <div id="c-count" style="padding:8px 2px;font-size:.72rem;color:var(--white4);"></div>
+      </div>
+
+      <!-- ── PIPELINE ── -->
+      <div id="page-pipeline">
+        <div class="sec-hdr"><div></div><button class="btn btn-primary btn-sm" onclick="openAddCust()">+ Add Lead</button></div>
+        <div class="kanban" id="kanban"></div>
+      </div>
+
+      <!-- ── FOLLOW-UPS ── -->
+      <div id="page-followups">
+        <div class="sec-hdr"><div></div><button class="btn btn-primary btn-sm" onclick="openFU()">+ Schedule</button></div>
+        <div class="tabs">
+          <button class="tab-btn active" onclick="fuSwitch('pending',this)">Pending</button>
+          <button class="tab-btn" onclick="fuSwitch('today',this)">Today</button>
+          <button class="tab-btn" onclick="fuSwitch('overdue',this)">Overdue</button>
+          <button class="tab-btn" onclick="fuSwitch('completed',this)">Completed</button>
+        </div>
+        <div id="fu-list"></div>
+      </div>
+
+      <!-- ── WHATSAPP ── -->
+      <div id="page-whatsapp">
+        <div class="prod-panel">
+          <h3>📲 WhatsApp + Firebase Configuration</h3>
+          <div class="prod-check">
+            <div class="prod-icon pi-done">✓</div>
+            <div class="prod-text"><h4>Firebase Cloud Sync</h4><p>All WhatsApp message history is saved to <strong style="color:var(--green);">Firestore</strong> in real-time and accessible across all devices.</p></div>
+          </div>
+          <div class="prod-check">
+            <div class="prod-icon pi-done">✓</div>
+            <div class="prod-text"><h4>Your WhatsApp Number</h4><p><strong style="color:var(--green);">+255 754 074 590</strong> — Pre-configured. Messages open in WhatsApp Web and are logged to Firebase.</p></div>
+          </div>
+          <div class="prod-check">
+            <div class="prod-icon pi-warn">!</div>
+            <div class="prod-text"><h4>WhatsApp Business API (Twilio)</h4><p>For fully automated background messaging, connect Twilio via your Node.js backend. See docs at twilio.com/whatsapp.</p></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:18px;">
+          <div class="card">
+            <div class="card-title">MESSAGE TEMPLATES</div>
+            <div id="tmpl-list"></div>
+            <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="addTmpl()">+ Add Template</button>
+          </div>
+          <div class="card">
+            <div class="card-title">QUICK SEND</div>
+            <div class="form-field" style="margin-bottom:11px;"><label>Customer</label><select id="qs-cust"></select></div>
+            <div class="form-field" style="margin-bottom:11px;"><label>Template</label>
+              <select id="qs-tmpl" onchange="applyQSTmpl()"><option value="">— none —</option></select>
+            </div>
+            <div class="form-field" style="margin-bottom:11px;"><label>Message</label><textarea id="qs-msg" style="min-height:90px;"></textarea></div>
+            <button class="btn btn-wa" onclick="quickSend()">📲 Open in WhatsApp · +255754074590</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">MESSAGE HISTORY <span class="badge b-firebase" style="font-size:.6rem;vertical-align:middle;">FIREBASE</span></div>
+          <div id="wa-hist"></div>
+        </div>
+      </div>
+
+      <!-- ── REMINDERS ── -->
+      <div id="page-reminders">
+        <div class="sec-hdr"><div></div><button class="btn btn-primary btn-sm" onclick="openRem()">+ Set Reminder</button></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;" id="rem-grid"></div>
+      </div>
+
+      <!-- ── REPORTS ── -->
+      <div id="page-reports">
+        <div class="sec-hdr">
+          <div class="card-title" style="margin:0;">REPORTS & EXPORT</div>
+          <div class="flex-c gap8" style="flex-wrap:wrap;">
+            <button class="btn btn-ghost" onclick="expExcel()">📊 Excel</button>
+            <button class="btn btn-ghost" onclick="expCSV()">📄 CSV</button>
+            <button class="btn btn-ghost" onclick="expPDF()">📑 PDF</button>
+            <button class="btn btn-ghost" onclick="expJSON()">{ } JSON</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:18px;">
+          <div class="card"><div class="card-title">PIPELINE STATUS</div><div id="r-status"></div></div>
+          <div class="card"><div class="card-title">TAG DISTRIBUTION</div><div id="r-tags"></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:18px;">
+          <div class="card"><div class="card-title">MESSAGES BY DAY</div><div id="r-msgs"></div></div>
+          <div class="card"><div class="card-title">CONVERSION METRICS</div><div id="r-conv"></div></div>
+        </div>
+        <div class="card"><div class="card-title">FULL ACTIVITY LOG <span class="badge b-firebase" style="font-size:.6rem;vertical-align:middle;">FIREBASE</span></div><div id="r-log" style="max-height:360px;overflow-y:auto;"></div></div>
+      </div>
+
+      <!-- ── SETTINGS ── -->
+      <div id="page-settings">
+        <div class="prod-panel">
+          <h3>🚀 PRODUCTION STATUS</h3>
+          <div class="prod-check">
+            <div class="prod-icon pi-done">✓</div>
+            <div class="prod-text"><h4>Firebase Authentication</h4><p>Users authenticate via Firebase Auth. Secure, scalable, no passwords stored in browser.</p></div>
+          </div>
+          <div class="prod-check">
+            <div class="prod-icon pi-done">✓</div>
+            <div class="prod-text"><h4>Firestore Cloud Database</h4><p>All data (customers, follow-ups, reminders, messages) stored in Firestore. Real-time sync across all devices.</p></div>
+          </div>
+          <div class="prod-check">
+            <div class="prod-icon pi-done">✓</div>
+            <div class="prod-text"><h4>Multi-Device Sync</h4><p>Open on phone, tablet, or computer — changes appear instantly everywhere. Project: <strong>my-web-82171</strong></p></div>
+          </div>
+          <div class="prod-check">
+            <div class="prod-icon pi-done">✓</div>
+            <div class="prod-text"><h4>WhatsApp Number</h4><p>Your number +255754074590 is pre-configured across all send functions.</p></div>
+          </div>
+          <div class="prod-check">
+            <div class="prod-icon pi-warn">!</div>
+            <div class="prod-text"><h4>Firestore Security Rules</h4><p>Set up proper Firestore security rules in the Firebase Console to restrict read/write access to authenticated users only.</p></div>
+          </div>
+          <div class="prod-check">
+            <div class="prod-icon pi-need">→</div>
+            <div class="prod-text"><h4>Automated Cron Jobs</h4><p>Server-side auto-reminders require a Node.js backend. Use Firebase Cloud Functions or Railway.app for scheduled tasks.</p></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+          <div class="card">
+            <div class="card-title">BUSINESS INFO</div>
+            <div class="form-field" style="margin-bottom:11px;"><label>Business Name</label><input type="text" id="s-biz" placeholder="My Business"></div>
+            <div class="form-field" style="margin-bottom:11px;"><label>WhatsApp Number</label><input type="text" id="s-wa" value="+255754074590"></div>
+            <div class="form-field" style="margin-bottom:11px;"><label>Default Follow-Up Days</label><input type="number" id="s-fd" value="3" min="1" max="30"></div>
+            <button class="btn btn-primary" onclick="saveSettings()">SAVE SETTINGS</button>
+          </div>
+          <div class="card">
+            <div class="card-title">DATA MANAGEMENT</div>
+            <div style="display:flex;flex-direction:column;gap:9px;">
+              <button class="btn btn-ghost" onclick="expJSON()">📤 Export All (JSON backup)</button>
+              <button class="btn btn-ghost" onclick="document.getElementById('imp-f').click()">📥 Import JSON backup</button>
+              <button class="btn btn-ghost" onclick="expExcel()">📊 Export Excel</button>
+              <button class="btn btn-ghost" onclick="expPDF()">📑 Export PDF Report</button>
+              <hr class="divider">
+              <button class="btn btn-ghost" style="color:var(--red);border-color:rgba(232,25,44,.3);" onclick="resetAll()">⚠ Reset All Data</button>
+            </div>
+          </div>
+          <div class="card" id="admin-panel">
+            <div class="card-title">USER MANAGEMENT <span class="badge b-admin" style="vertical-align:middle;margin-left:6px;">ADMIN ONLY</span></div>
+            <div id="users-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">FIREBASE INFO</div>
+            <div style="font-size:.8rem;color:var(--white4);line-height:1.9;">
+              <strong style="color:var(--white2);font-size:.9rem;">INSTA REMINDER CRM v2.0</strong><br>
+              🔥 Firebase Cloud Sync: <span style="color:var(--green);">Active</span><br>
+              📦 Project: <span style="color:#FFA000;">my-web-82171</span><br>
+              📲 WhatsApp: <span style="color:var(--green);">+255 754 074 590</span><br>
+              🔒 Auth: Firebase Authentication<br>
+              🗄 Database: Firestore (NoSQL)<br>
+              📊 Export: Excel · CSV · PDF · JSON
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<input type="file" id="imp-f" accept=".json" class="hidden" onchange="handleImp(event)">
+
+<script>
+// ══════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════
+const MY_WA = '+255754074590';
+
+// ══════════════════════════════════════════════════
+// IN-MEMORY CACHE (for offline-like feel + fast reads)
+// ══════════════════════════════════════════════════
+let CACHE = {
+  customers: [],
+  followups: [],
+  reminders: [],
+  messages: [],
+  activity: [],
+  templates: [],
+  settings: {},
+  users: []
+};
+
+// ══════════════════════════════════════════════════
+// FIREBASE HELPERS
+// ══════════════════════════════════════════════════
+let db, auth, FUNCS;
+let CU = null; // current user
+let CU_PROFILE = null; // Firestore user profile
+let unsubscribers = []; // realtime listeners
+
+function fbReady() {
+  return window.FB_AUTH && window.FB_DB && window.FB_FUNCS;
+}
+
+// Set Firestore document
+async function fbSet(col, id, data) {
+  if (!fbReady()) return;
+  const { doc, setDoc, serverTimestamp } = window.FB_FUNCS;
+  try {
+    await setDoc(doc(window.FB_DB, col, id), { ...data, _updatedAt: Date.now() });
+    setSyncStatus('synced');
+  } catch(e) {
+    console.error('fbSet error', e);
+    setSyncStatus('error');
+  }
+}
+
+// Delete Firestore document
+async function fbDel(col, id) {
+  if (!fbReady()) return;
+  const { doc, deleteDoc } = window.FB_FUNCS;
+  try {
+    await deleteDoc(doc(window.FB_DB, col, id));
+    setSyncStatus('synced');
+  } catch(e) {
+    console.error('fbDel error', e);
+  }
+}
+
+// Get all documents from a collection
+async function fbGetAll(col) {
+  if (!fbReady()) return [];
+  const { collection, getDocs } = window.FB_FUNCS;
+  try {
+    const snap = await getDocs(collection(window.FB_DB, col));
+    return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+  } catch(e) {
+    console.error('fbGetAll error', e);
+    return [];
+  }
+}
+
+// Setup realtime listener for a collection
+function fbListen(col, callback) {
+  if (!fbReady()) return;
+  const { collection, onSnapshot } = window.FB_FUNCS;
+  const unsub = onSnapshot(collection(window.FB_DB, col), (snap) => {
+    const data = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+    callback(data);
+    setSyncStatus('synced');
+  }, (err) => {
+    console.error('fbListen error', col, err);
+    setSyncStatus('error');
+  });
+  unsubscribers.push(unsub);
+}
+
+// Stop all listeners
+function stopListeners() {
+  unsubscribers.forEach(u => u());
+  unsubscribers = [];
+}
+
+// ══════════════════════════════════════════════════
+// SYNC STATUS UI
+// ══════════════════════════════════════════════════
+let syncTimeout;
+function setSyncStatus(status) {
+  const bar = document.getElementById('fb-status-bar');
+  const dot = document.getElementById('fb-dot');
+  const txt = document.getElementById('fb-status-text');
+  const syncTxt = document.getElementById('sync-text');
+  if (status === 'synced') {
+    bar.className = 'connected'; dot.style.background = 'var(--green)'; dot.classList.remove('pulse');
+    txt.textContent = '✓ Firebase Connected — Real-time sync active';
+    if (syncTxt) syncTxt.textContent = 'Synced';
+  } else if (status === 'syncing') {
+    if (syncTxt) syncTxt.textContent = 'Syncing...';
+  } else if (status === 'error') {
+    bar.className = 'error'; dot.style.background = 'var(--red)'; dot.classList.remove('pulse');
+    txt.textContent = '✗ Firebase sync error — Check console';
+    if (syncTxt) syncTxt.textContent = 'Sync Error';
+  }
+}
+
+// ══════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════
+function authTab(t) {
+  document.querySelectorAll('.auth-tab').forEach((el,i) => el.classList.toggle('active', i === (t==='login'?0:1)));
+  document.getElementById('lf').classList.toggle('hidden', t !== 'login');
+  document.getElementById('rf').classList.toggle('hidden', t === 'login');
+  setAE('');
+}
+
+async function doLogin() {
+  const email = document.getElementById('le').value.trim();
+  const pass  = document.getElementById('lp').value;
+  if (!email || !pass) { setAE('Please enter email and password.', true); return; }
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Signing in...';
+  try {
+    const { signInWithEmailAndPassword } = window.FB_FUNCS;
+    const cred = await signInWithEmailAndPassword(window.FB_AUTH, email, pass);
+    CU = cred.user;
+    await loadUserProfile(CU.uid);
+    startApp();
+  } catch(e) {
+    let msg = 'Invalid email or password.';
+    if (e.code === 'auth/user-not-found') msg = 'No account found with this email.';
+    if (e.code === 'auth/wrong-password') msg = 'Incorrect password.';
+    if (e.code === 'auth/too-many-requests') msg = 'Too many attempts. Try again later.';
+    setAE(msg, true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'SIGN IN →';
+  }
+}
+
+async function doRegister() {
+  const name  = document.getElementById('rn').value.trim();
+  const email = document.getElementById('re').value.trim();
+  const pass  = document.getElementById('rp').value;
+  const pass2 = document.getElementById('rp2').value;
+  if (!name||!email||!pass) { setAE('All fields required.', true); return; }
+  if (pass.length < 8)      { setAE('Password min 8 characters.', true); return; }
+  if (!/[A-Z]/.test(pass))  { setAE('Password needs 1 uppercase letter.', true); return; }
+  if (!/[0-9]/.test(pass))  { setAE('Password needs 1 number.', true); return; }
+  if (pass !== pass2)       { setAE('Passwords do not match.', true); return; }
+  const btn = document.getElementById('reg-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Creating...';
+  try {
+    const { createUserWithEmailAndPassword } = window.FB_FUNCS;
+    const cred = await createUserWithEmailAndPassword(window.FB_AUTH, email, pass);
+    // Save user profile to Firestore
+    const profile = { id: cred.user.uid, name, email, role: 'staff', created: Date.now() };
+    await fbSet('users', cred.user.uid, profile);
+    setAE('Account created! You can now sign in.', false);
+    setTimeout(() => authTab('login'), 1500);
+  } catch(e) {
+    let msg = 'Registration failed.';
+    if (e.code === 'auth/email-already-in-use') msg = 'Email already registered.';
+    if (e.code === 'auth/invalid-email') msg = 'Invalid email address.';
+    setAE(msg, true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'CREATE ACCOUNT →';
+  }
+}
+
+async function loadUserProfile(uid) {
+  const { doc, getDoc } = window.FB_FUNCS;
+  try {
+    const snap = await getDoc(doc(window.FB_DB, 'users', uid));
+    if (snap.exists()) {
+      CU_PROFILE = snap.data();
+    } else {
+      // First-time admin setup: if no profile exists, create admin
+      CU_PROFILE = { id: uid, name: CU.email.split('@')[0], email: CU.email, role: 'admin', created: Date.now() };
+      await fbSet('users', uid, CU_PROFILE);
+    }
+  } catch(e) {
+    CU_PROFILE = { id: uid, name: CU.email.split('@')[0], email: CU.email, role: 'admin' };
+  }
+}
+
+function setAE(msg, isErr=true) {
+  const el = document.getElementById('auth-err');
+  el.textContent = msg;
+  el.className = 'auth-err ' + (msg ? (isErr ? 'err' : 'ok') : '');
+}
+
+async function doLogout() {
+  stopListeners();
+  const { signOut } = window.FB_FUNCS;
+  await signOut(window.FB_AUTH);
+  CU = null; CU_PROFILE = null;
+  CACHE = { customers:[], followups:[], reminders:[], messages:[], activity:[], templates:[], settings:{}, users:[] };
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('le').value = '';
+  document.getElementById('lp').value = '';
+  toast('Logged out', 'warn');
+}
+
+// ══════════════════════════════════════════════════
+// APP START + REALTIME LISTENERS
+// ══════════════════════════════════════════════════
+async function startApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+
+  const profile = CU_PROFILE || {};
+  document.getElementById('sb-av').textContent = (profile.name||'U')[0].toUpperCase();
+  document.getElementById('sb-nm').textContent = profile.name || CU.email;
+  document.getElementById('sb-rl').textContent = profile.role === 'admin' ? 'Administrator' : 'Staff Member';
+  document.getElementById('topbar-badge').innerHTML = `<span class="badge ${profile.role==='admin'?'b-admin':'b-staff'}">${(profile.role||'staff').toUpperCase()}</span>`;
+  document.getElementById('admin-panel').style.display = profile.role==='admin' ? 'block' : 'none';
+
+  updateDate(); setInterval(updateDate, 60000);
+  setInterval(checkRems, 60000);
+
+  // Setup realtime Firestore listeners
+  setupListeners();
+
+  // Load initial data then render
+  await loadAllData();
+  go('dashboard');
+}
+
+function setupListeners() {
+  stopListeners();
+
+  fbListen('customers', data => {
+    CACHE.customers = data;
+    if (curPage === 'customers') rCust();
+    if (curPage === 'dashboard') rDash();
+    if (curPage === 'pipeline')  rKanban();
+    if (curPage === 'analytics') rAnalytics();
+    updateBadges();
+  });
+
+  fbListen('followups', data => {
+    CACHE.followups = data;
+    if (curPage === 'followups') rFU(fuCurTab);
+    if (curPage === 'dashboard') rDash();
+    updateBadges();
+  });
+
+  fbListen('reminders', data => {
+    CACHE.reminders = data;
+    if (curPage === 'reminders') rRem();
+    updateBadges(); checkRems();
+  });
+
+  fbListen('messages', data => {
+    CACHE.messages = data.sort((a,b) => (b.time||0) - (a.time||0));
+    if (curPage === 'whatsapp') rWA();
+    updateBadges();
+  });
+
+  fbListen('activity', data => {
+    CACHE.activity = data.sort((a,b) => (b.time||0) - (a.time||0));
+    if (curPage === 'dashboard') rDash();
+    if (curPage === 'reports') rReports();
+  });
+
+  fbListen('templates', data => {
+    CACHE.templates = data;
+    if (curPage === 'whatsapp') rWA();
+  });
+
+  fbListen('users', data => {
+    CACHE.users = data;
+    if (curPage === 'settings') rSettings();
+    if (curPage === 'analytics') rAnalytics();
+  });
+}
+
+async function loadAllData() {
+  setSyncStatus('syncing');
+  try {
+    const [cs, fs, rs, ms, acts, ts, us] = await Promise.all([
+      fbGetAll('customers'), fbGetAll('followups'), fbGetAll('reminders'),
+      fbGetAll('messages'),  fbGetAll('activity'),  fbGetAll('templates'),
+      fbGetAll('users')
+    ]);
+    CACHE.customers = cs;
+    CACHE.followups = fs;
+    CACHE.reminders = rs;
+    CACHE.messages  = ms.sort((a,b) => (b.time||0) - (a.time||0));
+    CACHE.activity  = acts.sort((a,b) => (b.time||0) - (a.time||0));
+    CACHE.templates = ts.length ? ts : await seedTemplates();
+    CACHE.users = us;
+
+    // Load settings
+    const { doc, getDoc } = window.FB_FUNCS;
+    const sSnap = await getDoc(doc(window.FB_DB, 'settings', 'main'));
+    CACHE.settings = sSnap.exists() ? sSnap.data() : { bizname:'INSTA REMINDER', waNumber:MY_WA, fuDays:3 };
+
+    setSyncStatus('synced');
+  } catch(e) {
+    console.error('loadAllData error', e);
+    setSyncStatus('error');
+  }
+}
+
+async function seedTemplates() {
+  const defaults = [
+    { id:'t1', name:'Welcome',    body:'Hello {name}! Welcome to {business}. How can we help you today? 😊' },
+    { id:'t2', name:'Follow-Up',  body:'Hi {name}, just following up! Have you had a chance to review our offer? Let us know if you need anything. 🙏' },
+    { id:'t3', name:'Closed Deal',body:'Congratulations {name}! Your order is confirmed. Thank you for choosing {business}! 🎉' },
+    { id:'t4', name:'Reminder',   body:'Hi {name}, this is a friendly reminder from {business}. Please feel free to reach out anytime!' },
+    { id:'t5', name:'Promotion',  body:'Hi {name}! 🔥 We have an exclusive offer just for you. Contact us now before it expires!' }
+  ];
+  for (const t of defaults) await fbSet('templates', t.id, t);
+  return defaults;
+}
+
+// ══════════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════════
+const PTitles = { dashboard:'Dashboard', analytics:'Analytics', customers:'Customers', pipeline:'Pipeline', followups:'Follow-Ups', whatsapp:'WhatsApp', reminders:'Reminders', reports:'Reports & Export', settings:'Settings' };
+let curPage = 'dashboard';
+
+function go(p) {
+  curPage = p;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const ni = document.querySelector(`.nav-item[onclick="go('${p}')"]`);
+  if (ni) ni.classList.add('active');
+  document.querySelectorAll('[id^="page-"]').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-'+p)?.classList.add('active');
+  document.getElementById('ph').textContent = (PTitles[p]||p).toUpperCase();
+  rPage(p);
+}
+
+function rPage(p) {
+  if (p==='dashboard')  rDash();
+  else if (p==='analytics') rAnalytics();
+  else if (p==='customers') rCust();
+  else if (p==='pipeline')  rKanban();
+  else if (p==='followups') rFU('pending');
+  else if (p==='whatsapp')  rWA();
+  else if (p==='reminders') rRem();
+  else if (p==='reports')   rReports();
+  else if (p==='settings')  rSettings();
+}
+
+function updateDate() {
+  document.getElementById('top-date').textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+}
+
+// ══════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════
+function rDash() {
+  const cs = CACHE.customers;
+  const fs = CACHE.followups;
+  const ms = CACHE.messages;
+  const rs = CACHE.reminders;
+  const td = today();
+  const closed = cs.filter(c=>c.stage==='Closed').length;
+  const conv = cs.length ? Math.round(closed/cs.length*100) : 0;
+  const overdue = fs.filter(f=>f.status==='pending'&&f.date<td).length;
+
+  document.getElementById('d-stats').innerHTML = `
+    <div class="stat s-red"><div class="stat-lbl">Total Customers</div><div class="stat-val">${cs.length}</div><div class="stat-sub">All time</div></div>
+    <div class="stat s-green"><div class="stat-lbl">Closed Deals</div><div class="stat-val">${closed}</div><div class="stat-sub">${conv}% conversion</div></div>
+    <div class="stat s-yellow"><div class="stat-lbl">Pending Follow-Ups</div><div class="stat-val">${fs.filter(f=>f.status==='pending').length}</div><div class="stat-sub">${overdue} overdue</div></div>
+    <div class="stat s-blue"><div class="stat-lbl">Messages Sent</div><div class="stat-val">${ms.length}</div><div class="stat-sub">WhatsApp total</div></div>
+    <div class="stat s-purple"><div class="stat-lbl">Active Reminders</div><div class="stat-val">${rs.filter(r=>!r.done).length}</div><div class="stat-sub">Upcoming</div></div>
+    <div class="stat s-red"><div class="stat-lbl">New Leads</div><div class="stat-val">${cs.filter(c=>c.stage==='New Lead').length}</div><div class="stat-sub">In pipeline</div></div>`;
+
+  const stg=['New Lead','Contacted','Interested','Closed','Lost'];
+  const cl={'New Lead':'var(--blue)','Contacted':'var(--yellow)','Interested':'var(--purple)','Closed':'var(--green)','Lost':'var(--red)'};
+  const mx = Math.max(1,...stg.map(s=>cs.filter(c=>c.stage===s).length));
+  document.getElementById('d-pipeline').innerHTML = stg.map(s=>{
+    const n=cs.filter(c=>c.stage===s).length;
+    return `<div class="chart-row"><div class="chart-lbl">${s}</div><div class="chart-bar-wrap"><div class="chart-bar" style="width:${n/mx*100}%;background:${cl[s]};"></div></div><div class="chart-val">${n}</div></div>`;
+  }).join('');
+
+  const acts = CACHE.activity;
+  document.getElementById('d-activity').innerHTML = acts.length ? acts.slice(0,12).map(a=>`
+    <div style="padding:7px 0;border-bottom:1px solid var(--black5);font-size:.77rem;">
+      <span style="color:var(--white2);">${a.msg}</span>
+      <div style="color:var(--white4);font-size:.67rem;margin-top:2px;">${new Date(a.time).toLocaleString()} · ${a.user}</div>
+    </div>`).join('') : '<div class="empty" style="padding:20px;"><p>No activity yet</p></div>';
+
+  const recent = cs.slice().sort((a,b)=>(b.added||0)-(a.added||0)).slice(0,6);
+  document.getElementById('d-recent').innerHTML = `<table><thead><tr><th>Name</th><th>Phone</th><th>Stage</th><th>Added</th></tr></thead><tbody>
+    ${recent.map(c=>`<tr><td><strong>${c.name}</strong></td><td class="text-mono">${c.phone}</td><td>${sBadge(c.stage)}</td><td style="color:var(--white4);font-size:.72rem;">${c.added?new Date(c.added).toLocaleDateString():''}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+// ══════════════════════════════════════════════════
+// ANALYTICS
+// ══════════════════════════════════════════════════
+function rAnalytics() {
+  const cs = CACHE.customers;
+  const ms = CACHE.messages;
+  const fs = CACHE.followups;
+  const closed = cs.filter(c=>c.stage==='Closed').length;
+  const conv = cs.length ? Math.round(closed/cs.length*100) : 0;
+  const todayMs = ms.filter(m=>new Date(m.time).toDateString()===new Date().toDateString()).length;
+  const respRate = Math.min(95, ms.length ? Math.round((closed/Math.max(1,ms.length))*100*4) : 0);
+
+  document.getElementById('a-kpi').innerHTML = `
+    <div class="stat s-red"><div class="stat-lbl">Messages Sent</div><div class="stat-val">${ms.length}</div><div class="stat-sub">${todayMs} today</div></div>
+    <div class="stat s-green"><div class="stat-lbl">Leads Converted</div><div class="stat-val">${closed}</div><div class="stat-sub">${conv}% rate</div></div>
+    <div class="stat s-yellow"><div class="stat-lbl">Est. Response Rate</div><div class="stat-val">${respRate}%</div><div class="stat-sub">Based on conversions</div></div>
+    <div class="stat s-blue"><div class="stat-lbl">Follow-Ups Done</div><div class="stat-val">${fs.filter(f=>f.status==='completed').length}</div><div class="stat-sub">Completed total</div></div>`;
+
+  const days7 = Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);return d;});
+  const mx7 = Math.max(1,...days7.map(d=>ms.filter(m=>new Date(m.time).toDateString()===d.toDateString()).length));
+  document.getElementById('a-msg').innerHTML = days7.map(d=>{
+    const n=ms.filter(m=>new Date(m.time).toDateString()===d.toDateString()).length;
+    return `<div class="chart-row"><div class="chart-lbl" style="font-size:.7rem;">${d.toLocaleDateString('en',{weekday:'short',month:'short',day:'numeric'})}</div><div class="chart-bar-wrap"><div class="chart-bar" style="width:${n/mx7*100}%;background:var(--red);"></div></div><div class="chart-val">${n}</div></div>`;
+  }).join('');
+
+  const stages=[['New Lead','var(--blue)'],['Contacted','var(--yellow)'],['Interested','var(--purple)'],['Closed','var(--green)']];
+  const total = Math.max(1, stages.reduce((a,[s])=>a+cs.filter(c=>c.stage===s).length,0));
+  document.getElementById('a-funnel').innerHTML = stages.map(([s,col])=>{
+    const n=cs.filter(c=>c.stage===s).length;
+    const pct=Math.round(n/total*100);
+    return `<div style="margin-bottom:11px;">
+      <div style="display:flex;justify-content:space-between;font-size:.74rem;color:var(--white3);margin-bottom:3px;"><span>${s}</span><span>${n} (${pct}%)</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${col};"></div></div>
+    </div>`;
+  }).join('');
+
+  const channels=[['WhatsApp',78],['Call',62],['Email',38],['Visit',85]];
+  document.getElementById('a-resp').innerHTML = channels.map(([ch,r])=>`
+    <div class="chart-row"><div class="chart-lbl">${ch}</div><div class="chart-bar-wrap"><div class="chart-bar" style="width:${r}%;background:var(--green);"></div></div><div class="chart-val">${r}%</div></div>`).join('');
+
+  document.getElementById('a-staff').innerHTML = CACHE.users.map(u=>{
+    const uc=cs.filter(c=>c.addedBy===u.id).length;
+    const um=ms.filter(m=>m.userId===u.id).length;
+    return `<div style="padding:9px 0;border-bottom:1px solid var(--black5);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:.83rem;font-weight:600;">${u.name}</span>
+        <span class="badge ${u.role==='admin'?'b-admin':'b-staff'}">${u.role}</span>
+      </div>
+      <div style="font-size:.72rem;color:var(--white4);margin-top:3px;">${uc} customers · ${um} messages</div>
+      <div class="progress-bar" style="margin-top:5px;"><div class="progress-fill" style="width:${Math.min(100,(uc+um)*5)}%;background:var(--red);"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+// CUSTOMERS
+// ══════════════════════════════════════════════════
+let editCid = null;
+let selSet = new Set();
+
+function rCust() {
+  const cs = CACHE.customers;
+  const q = (document.getElementById('cq')?.value||'').toLowerCase();
+  const sf = document.getElementById('csf')?.value||'';
+  const filtered = cs.filter(c=>{
+    const m = (c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.biz||'').toLowerCase().includes(q)||(c.email||'').toLowerCase().includes(q);
+    return m && (!sf||c.stage===sf);
+  });
+  document.getElementById('c-empty').classList.toggle('hidden', filtered.length>0);
+  document.getElementById('c-count').textContent = `Showing ${filtered.length} of ${cs.length} customers`;
+  document.getElementById('c-tbody').innerHTML = filtered.map(c=>`
+    <tr id="row-${c.id}" class="${selSet.has(c.id)?'tr-sel':''}">
+      <td><input type="checkbox" ${selSet.has(c.id)?'checked':''} onchange="togSel('${c.id}',this)"></td>
+      <td><strong>${c.name}</strong>${c.email?`<div style="font-size:.68rem;color:var(--white4);">${c.email}</div>`:''}</td>
+      <td class="text-mono">${c.phone}</td>
+      <td>${c.biz||'—'}</td>
+      <td>${sBadge(c.stage)}</td>
+      <td>${(c.tags||[]).map(t=>`<span class="tag-pill">${t}</span>`).join(' ')}</td>
+      <td style="font-size:.7rem;color:var(--white4);">${c.added?new Date(c.added).toLocaleDateString():''}</td>
+      <td><div class="flex-c gap8">
+        <button class="btn btn-ghost btn-xs" onclick="openWA('${c.id}')" title="WhatsApp">📲</button>
+        <button class="btn btn-ghost btn-xs" onclick="editCust('${c.id}')" title="Edit">✏️</button>
+        <button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="delCust('${c.id}')" title="Delete">🗑</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function togSel(id,cb){ cb.checked?selSet.add(id):selSet.delete(id); document.getElementById('row-'+id)?.classList.toggle('tr-sel',cb.checked); }
+function selAll(cb){ CACHE.customers.forEach(c=>cb.checked?selSet.add(c.id):selSet.delete(c.id)); rCust(); }
+
+function openAddCust() {
+  editCid = null;
+  document.getElementById('m-cust-title').textContent = 'ADD CUSTOMER';
+  ['c-name','c-phone','c-email','c-biz','c-tags','c-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('c-stage').value = 'New Lead';
+  om('m-cust');
+}
+
+function editCust(id) {
+  const c = CACHE.customers.find(x=>x.id===id); if(!c) return;
+  editCid = id;
+  document.getElementById('m-cust-title').textContent = 'EDIT CUSTOMER';
+  document.getElementById('c-name').value  = c.name;
+  document.getElementById('c-phone').value = c.phone;
+  document.getElementById('c-email').value = c.email||'';
+  document.getElementById('c-biz').value   = c.biz||'';
+  document.getElementById('c-stage').value = c.stage;
+  document.getElementById('c-tags').value  = (c.tags||[]).join(', ');
+  document.getElementById('c-notes').value = c.notes||'';
+  om('m-cust');
+}
+
+async function saveCust() {
+  const name  = document.getElementById('c-name').value.trim();
+  const phone = document.getElementById('c-phone').value.trim();
+  if (!name||!phone) { toast('Name and phone required','err'); return; }
+  const data = {
+    name, phone,
+    email: document.getElementById('c-email').value.trim(),
+    biz: document.getElementById('c-biz').value.trim(),
+    stage: document.getElementById('c-stage').value,
+    tags: document.getElementById('c-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
+    notes: document.getElementById('c-notes').value.trim(),
+    addedBy: CU_PROFILE?.id || CU?.uid
+  };
+  if (editCid) {
+    await fbSet('customers', editCid, { ...CACHE.customers.find(c=>c.id===editCid), ...data });
+    log(`Updated customer: ${name}`);
+  } else {
+    const id = 'c' + Date.now();
+    await fbSet('customers', id, { ...data, id, added: Date.now() });
+    log(`Added customer: ${name}`);
+  }
+  cm('m-cust');
+  toast(editCid ? 'Customer updated! ☁️' : 'Customer added! ☁️', 'firebase');
+}
+
+async function delCust(id) {
+  if (!confirm('Delete this customer?')) return;
+  await fbDel('customers', id);
+  log('Deleted customer');
+  toast('Deleted','warn');
+}
+
+async function bulkDel() {
+  if (!selSet.size) { toast('Select customers first','err'); return; }
+  if (!confirm(`Delete ${selSet.size} customers?`)) return;
+  for (const id of selSet) await fbDel('customers', id);
+  selSet.clear();
+  log(`Bulk deleted ${selSet.size} customers`);
+  toast('Deleted','warn');
+}
+
+function bulkWA() {
+  if (!selSet.size) { toast('Select customers first','err'); return; }
+  CACHE.customers.filter(c=>selSet.has(c.id)).forEach(c=>{
+    const ph = c.phone.replace(/[^0-9]/g,'');
+    setTimeout(()=>window.open(`https://wa.me/${ph}?text=Hello%20${encodeURIComponent(c.name)}!`,'_blank'),200);
+  });
+}
+
+// ══════════════════════════════════════════════════
+// KANBAN
+// ══════════════════════════════════════════════════
+function rKanban() {
+  const cs = CACHE.customers;
+  const stages = ['New Lead','Contacted','Interested','Closed'];
+  const cl = {'New Lead':'var(--blue)','Contacted':'var(--yellow)','Interested':'var(--purple)','Closed':'var(--green)'};
+  document.getElementById('kanban').innerHTML = stages.map(s=>{
+    const sc = cs.filter(c=>c.stage===s);
+    return `<div class="k-col">
+      <div class="k-head"><h3 style="color:${cl[s]};">${s}</h3><span class="k-count">${sc.length}</span></div>
+      ${sc.map(c=>`<div class="k-card" onclick="editCust('${c.id}')">
+        <div class="k-card-name">${c.name}</div>
+        <div class="k-card-meta">${c.biz||c.phone}</div>
+        ${c.tags?.length?`<div style="margin-top:5px;">${c.tags.map(t=>`<span class="tag-pill">${t}</span>`).join(' ')}</div>`:''}
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+// FOLLOW-UPS
+// ══════════════════════════════════════════════════
+let fuCurTab = 'pending';
+function fuSwitch(tab,btn) {
+  fuCurTab=tab;
+  document.querySelectorAll('#page-followups .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  rFU(tab);
+}
+
+function rFU(tab) {
+  const fs = CACHE.followups;
+  const cs = CACHE.customers;
+  const td = today();
+  let fil;
+  if (tab==='pending')    fil=fs.filter(f=>f.status==='pending'&&f.date>=td);
+  else if (tab==='today') fil=fs.filter(f=>f.status==='pending'&&f.date===td);
+  else if (tab==='overdue') fil=fs.filter(f=>f.status==='pending'&&f.date<td);
+  else fil=fs.filter(f=>f.status==='completed');
+  const el=document.getElementById('fu-list');
+  if (!fil.length) { el.innerHTML='<div class="empty"><p>No follow-ups here.</p></div>'; return; }
+  el.innerHTML=fil.map(f=>{
+    const c=cs.find(x=>x.id===f.customerId);
+    const ov=f.status==='pending'&&f.date<td;
+    return `<div class="card" style="margin-bottom:11px;display:flex;align-items:center;gap:15px;padding:15px;">
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:.88rem;margin-bottom:3px;">${c?.name||'Unknown'}</div>
+        <div style="font-size:.72rem;color:var(--white4);">${f.method} · ${f.date} · ${f.notes||''}</div>
+      </div>
+      <div class="flex-c gap8">
+        <span class="badge b-${(f.priority||'medium').toLowerCase()}">${f.priority}</span>
+        ${ov?'<span class="badge b-overdue">OVERDUE</span>':''}
+        ${f.status==='pending'?`<button class="btn btn-green btn-sm" onclick="doneFU('${f.id}')">✓ Done</button>`:'<span class="badge b-done">Done</span>'}
+        ${c?`<button class="btn btn-ghost btn-xs" onclick="openWA('${c.id}')">📲</button>`:''}
+        <button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="delFU('${f.id}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openFU() {
+  fillCustSel('fu-cust');
+  const d=new Date(); d.setDate(d.getDate()+3);
+  document.getElementById('fu-date').value = d.toISOString().split('T')[0];
+  document.getElementById('fu-notes').value = '';
+  om('m-fu');
+}
+
+async function saveFU() {
+  const fu={
+    id:'f'+Date.now(),
+    customerId:document.getElementById('fu-cust').value,
+    date:document.getElementById('fu-date').value,
+    method:document.getElementById('fu-method').value,
+    priority:document.getElementById('fu-pri').value,
+    notes:document.getElementById('fu-notes').value.trim(),
+    status:'pending',
+    created:Date.now()
+  };
+  if (!fu.customerId||!fu.date) { toast('Select customer and date','err'); return; }
+  await fbSet('followups', fu.id, fu);
+  const c=CACHE.customers.find(x=>x.id===fu.customerId);
+  log(`Follow-up scheduled for ${c?.name||fu.customerId}`);
+  cm('m-fu'); toast('Follow-up scheduled! ☁️','firebase');
+}
+
+async function doneFU(id) {
+  const f = CACHE.followups.find(x=>x.id===id); if(!f) return;
+  await fbSet('followups', id, { ...f, status:'completed', doneAt:Date.now() });
+  log('Follow-up completed');
+  toast('Done! ☁️','firebase');
+}
+
+async function delFU(id) {
+  await fbDel('followups', id);
+  toast('Removed','warn');
+}
+
+// ══════════════════════════════════════════════════
+// WHATSAPP
+// ══════════════════════════════════════════════════
+function rWA() {
+  rTmpls();
+  fillCustSel('qs-cust');
+  fillTmplSel('qs-tmpl');
+  rWAHist();
+}
+
+function rTmpls() {
+  const ts=CACHE.templates;
+  document.getElementById('tmpl-list').innerHTML=ts.map(t=>`
+    <div class="card" style="padding:11px;margin-bottom:8px;background:var(--black4);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+        <strong style="font-size:.83rem;">${t.name}</strong>
+        <div class="flex-c gap8">
+          <button class="btn btn-ghost btn-xs" onclick="useTmpl('${t.id}')">Use</button>
+          <button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="delTmpl('${t.id}')">✕</button>
+        </div>
+      </div>
+      <div style="font-size:.72rem;color:var(--white4);">${t.body}</div>
+    </div>`).join('');
+}
+
+async function addTmpl() {
+  const name=prompt('Template name:'); if(!name) return;
+  const body=prompt('Message body (use {name} and {business}):'); if(!body) return;
+  const id='t'+Date.now();
+  await fbSet('templates', id, {id,name,body});
+  toast('Template added! ☁️','firebase');
+}
+
+async function delTmpl(id) {
+  await fbDel('templates', id);
+  toast('Template removed','warn');
+}
+
+function useTmpl(id) {
+  const t=CACHE.templates.find(x=>x.id===id); if(!t) return;
+  document.getElementById('qs-msg').value = t.body;
+}
+
+function fillTmplSel(sid) {
+  const el=document.getElementById(sid); if(!el) return;
+  el.innerHTML='<option value="">— none —</option>'+CACHE.templates.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+function applyQSTmpl() {
+  const tid=document.getElementById('qs-tmpl').value; if(!tid) return;
+  const t=CACHE.templates.find(x=>x.id===tid); if(!t) return;
+  const cid=document.getElementById('qs-cust').value;
+  const c=CACHE.customers.find(x=>x.id===cid);
+  const s=CACHE.settings;
+  document.getElementById('qs-msg').value=t.body.replace(/{name}/g,c?.name||'Customer').replace(/{business}/g,s.bizname||'our business');
+}
+
+function applyTmpl() {
+  const tid=document.getElementById('wa-tmpl').value; if(!tid) return;
+  const t=CACHE.templates.find(x=>x.id===tid); if(!t) return;
+  const cid=document.getElementById('wa-cust').value;
+  const c=CACHE.customers.find(x=>x.id===cid);
+  const s=CACHE.settings;
+  document.getElementById('wa-msg').value=t.body.replace(/{name}/g,c?.name||'Customer').replace(/{business}/g,s.bizname||'our business');
+}
+
+function openWA(custId) {
+  fillCustSel('wa-cust');
+  fillTmplSel('wa-tmpl');
+  if (custId) { const el=document.getElementById('wa-cust'); if(el) el.value=custId; }
+  document.getElementById('wa-msg').value='';
+  om('m-wa');
+}
+
+async function sendWA() {
+  const cid=document.getElementById('wa-cust').value;
+  const msg=document.getElementById('wa-msg').value.trim();
+  const c=CACHE.customers.find(x=>x.id===cid);
+  if (!c||!msg) { toast('Select customer and message','err'); return; }
+  const ph=c.phone.replace(/[^0-9]/g,'');
+  window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`,'_blank');
+  await logMsg(cid,msg);
+  cm('m-wa'); toast('WhatsApp opened + logged to Firebase! ✅','firebase');
+}
+
+async function quickSend() {
+  const cid=document.getElementById('qs-cust').value;
+  const msg=document.getElementById('qs-msg').value.trim();
+  const c=CACHE.customers.find(x=>x.id===cid);
+  if (!c||!msg) { toast('Select customer and enter message','err'); return; }
+  const ph=c.phone.replace(/[^0-9]/g,'');
+  window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`,'_blank');
+  await logMsg(cid,msg);
+  toast('WhatsApp opened + saved to Firebase! ✅','firebase');
+}
+
+async function logMsg(cid,msg) {
+  const id='m'+Date.now();
+  await fbSet('messages', id, { id, customerId:cid, msg, time:Date.now(), userId:CU_PROFILE?.id||CU?.uid });
+  const c=CACHE.customers.find(x=>x.id===cid);
+  await log(`WhatsApp sent to ${c?.name||cid}`);
+}
+
+function rWAHist() {
+  const ms=CACHE.messages;
+  const cs=CACHE.customers;
+  const el=document.getElementById('wa-hist');
+  if (!ms.length) { el.innerHTML='<div class="empty"><p>No messages sent yet.</p></div>'; return; }
+  el.innerHTML=ms.slice(0,30).map(m=>{
+    const c=cs.find(x=>x.id===m.customerId);
+    return `<div style="padding:9px 0;border-bottom:1px solid var(--black4);">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+        <strong style="font-size:.8rem;">${c?.name||'Unknown'} <span style="font-weight:400;color:var(--white4);font-size:.72rem;">${c?.phone||''}</span></strong>
+        <span style="font-size:.68rem;color:var(--white4);">${new Date(m.time).toLocaleString()}</span>
+      </div>
+      <div style="font-size:.75rem;color:var(--white4);">${m.msg}</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+// REMINDERS
+// ══════════════════════════════════════════════════
+function rRem() {
+  const rs=CACHE.reminders;
+  const g=document.getElementById('rem-grid');
+  if (!rs.length) { g.innerHTML='<div class="empty" style="grid-column:1/-1;"><p>No reminders set yet.</p></div>'; return; }
+  g.innerHTML=rs.sort((a,b)=>!a.done&&b.done?-1:1).map(r=>{
+    const col = r.priority==='High'?'var(--red)':r.priority==='Medium'?'var(--yellow)':'var(--green)';
+    return `<div class="card" style="border-left:3px solid ${col};${r.done?'opacity:.7;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;">
+        <div style="font-family:var(--fh);font-size:.95rem;letter-spacing:1px;flex:1;">${r.title}</div>
+        <span class="badge b-${(r.priority||'medium').toLowerCase()}">${r.priority}</span>
+      </div>
+      <div style="font-size:.72rem;color:var(--white4);margin-bottom:7px;">${r.datetime?new Date(r.datetime).toLocaleString():''}</div>
+      ${r.desc?`<div style="font-size:.76rem;color:var(--white3);margin-bottom:10px;">${r.desc}</div>`:''}
+      <div class="flex-c gap8">
+        ${!r.done?`<button class="btn btn-green btn-xs" onclick="doneRem('${r.id}')">✓ Done</button>`:'<span class="badge b-done">Completed</span>'}
+        <button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="delRem('${r.id}')">Remove</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openRem() {
+  document.getElementById('rem-title').value='';
+  document.getElementById('rem-desc').value='';
+  document.getElementById('rem-dt').value=inHours(1);
+  om('m-rem');
+}
+
+async function saveRem() {
+  const title=document.getElementById('rem-title').value.trim();
+  if (!title) { toast('Title required','err'); return; }
+  const id='r'+Date.now();
+  const r={id,title,datetime:document.getElementById('rem-dt').value,priority:document.getElementById('rem-pri').value,desc:document.getElementById('rem-desc').value.trim(),done:false,created:Date.now()};
+  await fbSet('reminders', id, r);
+  await log(`Reminder set: ${title}`);
+  cm('m-rem'); toast('Reminder set! ☁️','firebase');
+}
+
+async function doneRem(id) {
+  const r=CACHE.reminders.find(x=>x.id===id); if(!r) return;
+  await fbSet('reminders', id, { ...r, done:true });
+  toast('Done! ☁️','firebase');
+}
+
+async function delRem(id) {
+  await fbDel('reminders', id);
+  toast('Removed','warn');
+}
+
+function checkRems() {
+  const rs=CACHE.reminders;
+  const now=new Date();
+  rs.filter(r=>!r.done&&r.datetime).forEach(r=>{
+    const dt=new Date(r.datetime);
+    if ((dt-now)/60000 >= 0 && (dt-now)/60000 <= 5) {
+      document.getElementById('rem-popup-text').textContent=`${r.title} — ${dt.toLocaleTimeString()}`;
+      document.getElementById('rem-popup').style.display='block';
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════
+// REPORTS
+// ══════════════════════════════════════════════════
+function rReports() {
+  const cs=CACHE.customers;
+  const ms=CACHE.messages;
+  const fs=CACHE.followups;
+  const stg=['New Lead','Contacted','Interested','Closed','Lost'];
+  const cl={'New Lead':'var(--blue)','Contacted':'var(--yellow)','Interested':'var(--purple)','Closed':'var(--green)','Lost':'var(--red)'};
+  const mx=Math.max(1,...stg.map(s=>cs.filter(c=>c.stage===s).length));
+  document.getElementById('r-status').innerHTML=stg.map(s=>{
+    const n=cs.filter(c=>c.stage===s).length;
+    return `<div class="chart-row"><div class="chart-lbl">${s}</div><div class="chart-bar-wrap"><div class="chart-bar" style="width:${n/mx*100}%;background:${cl[s]};"></div></div><div class="chart-val">${n}</div></div>`;
+  }).join('');
+
+  const tm={};
+  cs.forEach(c=>(c.tags||[]).forEach(t=>tm[t]=(tm[t]||0)+1));
+  const tmx=Math.max(1,...Object.values(tm));
+  document.getElementById('r-tags').innerHTML=Object.entries(tm).length?Object.entries(tm).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`
+    <div class="chart-row"><div class="chart-lbl">${t}</div><div class="chart-bar-wrap"><div class="chart-bar" style="width:${n/tmx*100}%;background:var(--red);"></div></div><div class="chart-val">${n}</div></div>`).join('')
+    :'<div style="color:var(--white4);font-size:.8rem;padding:10px 0;">No tags yet.</div>';
+
+  const days7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);return d;});
+  const mx7=Math.max(1,...days7.map(d=>ms.filter(m=>new Date(m.time).toDateString()===d.toDateString()).length));
+  document.getElementById('r-msgs').innerHTML=days7.map(d=>{
+    const n=ms.filter(m=>new Date(m.time).toDateString()===d.toDateString()).length;
+    return `<div class="chart-row"><div class="chart-lbl" style="font-size:.7rem;">${d.toLocaleDateString('en',{weekday:'short',day:'numeric'})}</div><div class="chart-bar-wrap"><div class="chart-bar" style="width:${n/mx7*100}%;background:var(--green);"></div></div><div class="chart-val">${n}</div></div>`;
+  }).join('');
+
+  const closed=cs.filter(c=>c.stage==='Closed').length;
+  const conv=cs.length?Math.round(closed/cs.length*100):0;
+  const doneFUs=fs.filter(f=>f.status==='completed').length;
+  document.getElementById('r-conv').innerHTML=`
+    <div style="margin-bottom:13px;"><div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:4px;"><span style="color:var(--white3);">Lead → Closed</span><span style="color:var(--green);font-weight:700;">${conv}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${conv}%;background:var(--green);"></div></div></div>
+    <div style="margin-bottom:13px;"><div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:4px;"><span style="color:var(--white3);">Follow-Up Completion</span><span style="color:var(--blue);font-weight:700;">${fs.length?Math.round(doneFUs/fs.length*100):0}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${fs.length?Math.round(doneFUs/fs.length*100):0}%;background:var(--blue);"></div></div></div>
+    <div style="margin-bottom:13px;"><div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:4px;"><span style="color:var(--white3);">Msg per Customer</span><span style="color:var(--yellow);font-weight:700;">${cs.length?+(ms.length/cs.length).toFixed(1):0}</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,(ms.length/Math.max(1,cs.length))*20)}%;background:var(--yellow);"></div></div></div>`;
+
+  const acts=CACHE.activity;
+  document.getElementById('r-log').innerHTML=acts.length?acts.map(a=>`
+    <div style="padding:7px 0;border-bottom:1px solid var(--black5);font-size:.76rem;display:flex;justify-content:space-between;gap:12px;">
+      <span style="color:var(--white2);">${a.msg}</span>
+      <span style="color:var(--white4);white-space:nowrap;font-family:var(--fm);font-size:.67rem;">${new Date(a.time).toLocaleString()}</span>
+    </div>`).join('')
+    :'<div class="empty"><p>No activity yet.</p></div>';
+}
+
+// ══════════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════════
+function rSettings() {
+  const s=CACHE.settings;
+  document.getElementById('s-biz').value=s.bizname||'';
+  document.getElementById('s-wa').value=s.waNumber||MY_WA;
+  document.getElementById('s-fd').value=s.fuDays||3;
+  if (CU_PROFILE?.role==='admin') {
+    document.getElementById('users-list').innerHTML=CACHE.users.map(u=>`
+      <div style="padding:9px 0;border-bottom:1px solid var(--black5);display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:.83rem;font-weight:600;">${u.name}</div>
+          <div style="font-size:.7rem;color:var(--white4);">${u.email}</div>
+        </div>
+        <div class="flex-c gap8">
+          <span class="badge ${u.role==='admin'?'b-admin':'b-staff'}">${u.role}</span>
+          ${u.id!==CU_PROFILE.id?`<button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="delUser('${u.id}')">Remove</button>`:'<span style="font-size:.68rem;color:var(--white4);">(you)</span>'}
+        </div>
+      </div>`).join('');
+  }
+}
+
+async function saveSettings() {
+  const data={bizname:document.getElementById('s-biz').value.trim(),waNumber:document.getElementById('s-wa').value.trim()||MY_WA,fuDays:parseInt(document.getElementById('s-fd').value)||3};
+  await fbSet('settings', 'main', data);
+  CACHE.settings = data;
+  toast('Settings saved to Firebase! ☁️','firebase');
+}
+
+async function delUser(id) {
+  if (!confirm('Remove this user from Firestore? (They can still log in via Firebase Auth)')) return;
+  await fbDel('users', id);
+  toast('User profile removed','warn');
+}
+
+async function resetAll() {
+  if (!confirm('⚠ Delete ALL data from Firestore? This cannot be undone!')) return;
+  if (!confirm('FINAL WARNING: Are you absolutely sure?')) return;
+  const cols = ['customers','followups','reminders','messages','activity','templates'];
+  for (const col of cols) {
+    const items = await fbGetAll(col);
+    for (const item of items) await fbDel(col, item.id);
+  }
+  toast('All data reset from Firebase','warn');
+}
+
+// ══════════════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════════════
+function expCSV() {
+  const cs=CACHE.customers;
+  const rows=[['Name','Phone','Email','Business','Stage','Tags','Notes','Added'],...cs.map(c=>[c.name,c.phone,c.email||'',c.biz||'',c.stage,(c.tags||[]).join(';'),c.notes||'',c.added?new Date(c.added).toLocaleDateString():''])];
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  dlFile('InstaReminder_Customers.csv','text/csv',csv);
+  log('Exported CSV'); toast('CSV exported!');
+}
+
+function expJSON() {
+  const data={customers:CACHE.customers,followups:CACHE.followups,reminders:CACHE.reminders,messages:CACHE.messages,settings:CACHE.settings,exportedAt:new Date().toISOString(),exportedBy:CU_PROFILE?.name};
+  dlFile('InstaReminder_Firebase_Backup.json','application/json',JSON.stringify(data,null,2));
+  log('Exported JSON backup'); toast('JSON backup exported!');
+}
+
+function expExcel() {
+  const cs=CACHE.customers; const fs=CACHE.followups; const ms=CACHE.messages;
+  const custMap={}; cs.forEach(c=>custMap[c.id]=c.name);
+  const wb=XLSX.utils.book_new();
+  const cData=[['Name','Phone','Email','Business','Stage','Tags','Notes','Date Added'],...cs.map(c=>[c.name,c.phone,c.email||'',c.biz||'',c.stage,(c.tags||[]).join(';'),c.notes||'',c.added?new Date(c.added).toLocaleDateString():''])];
+  const ws1=XLSX.utils.aoa_to_sheet(cData);
+  ws1['!cols']=[{wch:22},{wch:16},{wch:26},{wch:22},{wch:14},{wch:14},{wch:30},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws1,'Customers');
+  const fData=[['Customer','Date','Method','Priority','Notes','Status'],...fs.map(f=>[custMap[f.customerId]||f.customerId,f.date,f.method,f.priority,f.notes||'',f.status])];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(fData),'Follow-Ups');
+  const mData=[['Customer','Phone','Message','Sent At'],...ms.map(m=>{const c=cs.find(x=>x.id===m.customerId);return [c?.name||'Unknown',c?.phone||'',m.msg,new Date(m.time).toLocaleString()]})];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(mData),'Messages');
+  const closed=cs.filter(c=>c.stage==='Closed').length;
+  const sumData=[['Metric','Value'],['Total Customers',cs.length],['Closed Deals',closed],['Conversion Rate',cs.length?Math.round(closed/cs.length*100)+'%':'0%'],['Total Messages',ms.length],['Follow-Ups',fs.length],['Export Date',new Date().toLocaleString()],['Firebase Project','my-web-82171'],['WhatsApp',MY_WA]];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sumData),'Summary');
+  XLSX.writeFile(wb,'InstaReminder_Firebase_Export.xlsx');
+  log('Exported Excel'); toast('Excel exported! 📊');
+}
+
+function expPDF() {
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const cs=CACHE.customers; const ms=CACHE.messages; const fs=CACHE.followups;
+  const closed=cs.filter(c=>c.stage==='Closed').length;
+  doc.setFillColor(10,10,10); doc.rect(0,0,210,32,'F');
+  doc.setFillColor(232,25,44); doc.rect(0,29,210,3,'F');
+  doc.setTextColor(232,25,44); doc.setFont('helvetica','bold'); doc.setFontSize(22);
+  doc.text('INSTA REMINDER CRM',14,18);
+  doc.setTextColor(200,200,200); doc.setFontSize(9);
+  doc.text('Firebase Cloud Report · v2.0 · '+MY_WA,14,26);
+  doc.setTextColor(120,120,120); doc.text(new Date().toLocaleString(),135,26);
+  let y=42;
+  const kpis=[['Customers',cs.length],['Closed',closed],['Conv.',cs.length?Math.round(closed/cs.length*100)+'%':'0%'],['Messages',ms.length],['Follow-Ups',fs.length]];
+  kpis.forEach((k,i)=>{
+    const bx=14+i*39;
+    doc.setFillColor(26,26,26); doc.setDrawColor(50,50,50); doc.roundedRect(bx,y,36,22,2,2,'FD');
+    doc.setFillColor(232,25,44); doc.rect(bx,y,36,2,'F');
+    doc.setTextColor(120,120,120); doc.setFontSize(7); doc.setFont('helvetica','normal');
+    doc.text(k[0].toUpperCase(),bx+2,y+8);
+    doc.setTextColor(245,245,245); doc.setFontSize(14); doc.setFont('helvetica','bold');
+    doc.text(String(k[1]),bx+2,y+18);
+  });
+  y=78;
+  doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(245,245,245);
+  doc.text('PIPELINE BREAKDOWN',14,y); y+=6;
+  const stg=[['New Lead',cs.filter(c=>c.stage==='New Lead').length,[59,130,246]],['Contacted',cs.filter(c=>c.stage==='Contacted').length,[245,158,11]],['Interested',cs.filter(c=>c.stage==='Interested').length,[168,85,247]],['Closed',cs.filter(c=>c.stage==='Closed').length,[34,197,94]],['Lost',cs.filter(c=>c.stage==='Lost').length,[232,25,44]]];
+  const stgMax=Math.max(1,...stg.map(s=>s[1]));
+  stg.forEach(s=>{ doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(160,160,160); doc.text(s[0],14,y+3); doc.setFillColor(40,40,40); doc.rect(60,y-1,100,5,'F'); doc.setFillColor(...s[2]); doc.rect(60,y-1,s[1]/stgMax*100,5,'F'); doc.setTextColor(200,200,200); doc.text(String(s[1]),164,y+3); y+=8; });
+  y+=6;
+  doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(245,245,245);
+  doc.text('CUSTOMER LIST',14,y); y+=6;
+  doc.setFillColor(232,25,44); doc.rect(14,y,182,7,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(8); doc.setFont('helvetica','bold');
+  doc.text('Name',16,y+4.5); doc.text('Phone',62,y+4.5); doc.text('Stage',108,y+4.5); doc.text('Business',144,y+4.5);
+  y+=9; doc.setFont('helvetica','normal'); doc.setFontSize(8);
+  cs.slice(0,25).forEach((c,i)=>{ if(y>270){doc.addPage();y=20;} if(i%2===0){doc.setFillColor(24,24,24);doc.rect(14,y-2,182,7,'F');} doc.setTextColor(220,220,220); doc.text((c.name||'').substring(0,22),16,y+3); doc.text((c.phone||'').substring(0,18),62,y+3); doc.text((c.stage||'').substring(0,15),108,y+3); doc.text((c.biz||'').substring(0,18),144,y+3); y+=7; });
+  doc.setFontSize(7); doc.setTextColor(80,80,80);
+  doc.text(`INSTA REMINDER CRM · Firebase: my-web-82171 · ${MY_WA} · ${new Date().toLocaleString()}`,14,290);
+  doc.save('InstaReminder_Firebase_Report.pdf');
+  log('Exported PDF'); toast('PDF exported! 📑');
+}
+
+async function handleImp(e) {
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=async ev=>{
+    try {
+      const d=JSON.parse(ev.target.result);
+      let count=0;
+      if (d.customers) { for(const c of d.customers){await fbSet('customers',c.id,c);count++;} }
+      if (d.followups)  { for(const c of d.followups) {await fbSet('followups',c.id,c);} }
+      if (d.reminders)  { for(const c of d.reminders) {await fbSet('reminders',c.id,c);} }
+      if (d.messages)   { for(const c of d.messages)  {await fbSet('messages',c.id,c);} }
+      toast(`Imported ${count} records to Firebase! ☁️`,'firebase');
+    } catch { toast('Invalid JSON file','err'); }
+  };
+  r.readAsText(f);
+  e.target.value='';
+}
+
+function dlFile(name,type,content) {
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type}));
+  a.download=name; a.click();
+}
+
+// ══════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════
+function fillCustSel(id) {
+  const el=document.getElementById(id); if(!el) return;
+  const cs=CACHE.customers;
+  el.innerHTML='<option value="">— select customer —</option>'+cs.map(c=>`<option value="${c.id}">${c.name} (${c.phone})</option>`).join('');
+}
+
+function sBadge(stage) {
+  const m={'New Lead':'b-new','Contacted':'b-contacted','Interested':'b-interested','Closed':'b-closed','Lost':'b-lost'};
+  return `<span class="badge ${m[stage]||''}">${stage}</span>`;
+}
+
+function om(id){ document.getElementById(id).classList.remove('hidden'); }
+function cm(id){ document.getElementById(id).classList.add('hidden'); }
+
+function toast(msg,type='') {
+  const t=document.createElement('div');
+  t.className=`toast${type?' '+type:''}`;
+  const icon = type==='err'?'✗':type==='warn'?'⚠':type==='firebase'?'☁':type==='info'?'ℹ':'✓';
+  t.innerHTML=`<span>${icon}</span> ${msg}`;
+  document.getElementById('toast-ct').appendChild(t);
+  setTimeout(()=>{ t.style.animation='tIn .3s ease reverse'; setTimeout(()=>t.remove(),300); },3500);
+}
+
+async function log(msg) {
+  const id='a'+Date.now();
+  const entry={id,msg,time:Date.now(),user:CU_PROFILE?.name||CU?.email||'System'};
+  await fbSet('activity', id, entry);
+}
+
+function updateBadges() {
+  const pf=CACHE.followups.filter(f=>f.status==='pending').length;
+  const ar=CACHE.reminders.filter(r=>!r.done).length;
+  const nb=el=>{ const e=document.getElementById(el); if(e){e.style.display=parseInt(e.textContent)>0?'':'none';} };
+  const set=(id,n)=>{ const e=document.getElementById(id); if(e){e.textContent=n; nb(id);} };
+  set('nb-fu',pf); set('nb-rem',ar); set('nb-wa',CACHE.messages.length);
+}
+
+// Date helpers
+function today(){ return new Date().toISOString().split('T')[0]; }
+function inHours(h){ const d=new Date(); d.setHours(d.getHours()+h); return d.toISOString().slice(0,16); }
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el=>el.addEventListener('click',e=>{ if(e.target===el) el.classList.add('hidden'); }));
+
+// ══════════════════════════════════════════════════
+// FIREBASE BOOT — called from module script
+// ══════════════════════════════════════════════════
+window.firebaseReady = function() {
+  // Listen for auth state changes (auto-login on reload)
+  const { onAuthStateChanged } = window.FB_FUNCS;
+  onAuthStateChanged(window.FB_AUTH, async (user) => {
+    if (user) {
+      CU = user;
+      await loadUserProfile(user.uid);
+      if (!document.getElementById('app').classList.contains('visible')) {
+        startApp();
+      }
+    } else {
+      document.getElementById('auth-screen').style.display = 'flex';
+      setSyncStatus('synced');
+    }
+  });
+};
+</script>
+</body>
+</html>
